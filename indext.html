@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghana International School - Innovation Lab Quotation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Neutrals -->
+    <!-- Application Structure Plan: A single-page dashboard design. The top level features filters for Labs and Disciplines. Key metrics (KPIs) like total cost and item count update dynamically. The main content area uses a bar chart for cost breakdown and a donut chart for discipline investment proportion, both reacting to filters. A detailed, searchable HTML table at the bottom provides granular data. This structure was chosen to transform the static report into a powerful analysis tool, allowing users to move from a high-level overview to specific details intuitively and answer complex questions (e.g., 'What is our total spend on AI for the Junior Lab?') through simple interactions. -->
+    <!-- Visualization & Content Choices: Grand Totals -> Inform -> KPI Cards (HTML/CSS) -> Dynamic updates for at-a-glance summaries. Cost Breakdowns -> Compare/Analyze -> Bar Chart (Chart.js) -> Allows comparison of investment across labs/disciplines. Discipline Investment -> Inform/Compare -> Donut Chart (Chart.js) -> Shows relative spending focus. Full Equipment List -> Organize/Explore -> Searchable HTML Table (JS) -> Provides detailed drill-down. All interactions are driven by JS to create a cohesive, cross-filtered experience. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f7f4;
+            color: #3f3c3a;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+        .kpi-card {
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+            transition: transform 0.2s ease-in-out;
+        }
+        .kpi-card:hover {
+            transform: translateY(-4px);
+        }
+        .filter-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .filter-btn.active {
+            background-color: #3b82f6;
+            color: #ffffff;
+            box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.1);
+        }
+        .table-search {
+            border: 1px solid #e5e7eb;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .table-search:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+        }
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border-radius: 0.75rem;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Ghana International School</h1>
+            <p class="text-lg text-gray-600 mt-1">Interactive Innovation Lab Quotation</p>
+            <p class="text-sm text-gray-500 mt-2">Date: July 24, 2025</p>
+        </header>
+
+        <main id="app-content">
+            <div class="bg-white rounded-xl shadow-sm p-4 md:p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Dashboard Controls</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Filter by Lab</label>
+                        <div id="lab-filters" class="flex flex-wrap gap-2">
+                            <button data-lab="All" class="filter-btn active px-4 py-2 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">All Labs</button>
+                            <button data-lab="Infant" class="filter-btn px-4 py-2 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Infant Lab</button>
+                            <button data-lab="Junior" class="filter-btn px-4 py-2 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Junior Lab</button>
+                            <button data-lab="Secondary" class="filter-btn px-4 py-2 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">Secondary Lab</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="discipline-filter" class="block text-sm font-medium text-gray-600 mb-2">Filter by Discipline</label>
+                        <div class="flex gap-2">
+                            <select id="discipline-filter" class="w-full p-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </select>
+                            <button id="explain-discipline-btn" class="px-4 py-2 text-sm font-medium bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center justify-center">
+                                Explain Discipline ✨
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div class="kpi-card text-center">
+                    <h3 class="text-gray-500 font-medium">Total Estimated Cost</h3>
+                    <p id="total-cost" class="text-3xl font-bold text-blue-600 mt-2"></p>
+                </div>
+                <div class="kpi-card text-center">
+                    <h3 class="text-gray-500 font-medium">Total Item Quantity</h3>
+                    <p id="total-items" class="text-3xl font-bold text-blue-600 mt-2"></p>
+                </div>
+                <div class="kpi-card text-center">
+                    <h3 class="text-gray-500 font-medium">Disciplines Covered</h3>
+                    <p id="total-disciplines" class="text-3xl font-bold text-blue-600 mt-2"></p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="bg-white rounded-xl shadow-sm p-4 md:p-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Cost Breakdown by Discipline</h3>
+                    <div class="chart-container">
+                        <canvas id="cost-breakdown-chart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-4 md:p-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Investment by STEAM Category</h3>
+                     <div class="chart-container">
+                        <canvas id="steam-donut-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm p-4 md:p-6">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2 md:mb-0">Equipment Details</h3>
+                    <input type="text" id="table-search" placeholder="Search equipment..." class="w-full md:w-1/3 p-2 rounded-lg table-search">
+                    <button id="generate-summary-btn" class="mt-4 md:mt-0 px-4 py-2 text-sm font-medium bg-purple-500 text-white rounded-lg hover:bg-purple-600 flex items-center justify-center">
+                        Generate Summary ✨
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Equipment</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lab</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discipline(s)</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody id="equipment-table-body" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- The Modal -->
+    <div id="llm-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 id="modal-title" class="text-xl font-semibold mb-4 text-gray-800"></h3>
+            <div id="modal-body" class="text-gray-700 text-base leading-relaxed">
+                <div id="loading-indicator" class="hidden flex items-center justify-center py-4">
+                    <div class="loading-spinner"></div>
+                    <p class="text-gray-600">Generating response...</p>
+                </div>
+                <p id="llm-response-text"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const quotationData = [
+            { lab: 'Infant', equipment: 'mTiny Discover Kit', quantity: 20, unitPrice: 180, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'MakeX Inspire Fruit Wonderland Arena Kit', quantity: 2, unitPrice: 350, steam: ['Engineering', 'Arts'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Infant', equipment: 'My World & Treasure ext pack', quantity: 1, unitPrice: 50, steam: ['Arts', 'Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Town & Grassland extension pack', quantity: 1, unitPrice: 50, steam: ['Arts', 'Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Coding Card Kit', quantity: 1, unitPrice: 30, steam: ['Technology', 'Math'], disciplines: ['Coding'] },
+            { lab: 'Infant', equipment: 'Colour Makers', quantity: 1, unitPrice: 40, steam: ['Arts', 'Science'], disciplines: ['Arts'] },
+            { lab: 'Infant', equipment: 'U20 Pro', quantity: 10, unitPrice: 120, steam: ['Technology', 'Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Infant', equipment: 'U30 Pro', quantity: 10, unitPrice: 150, steam: ['Technology', 'Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Infant', equipment: 'Geometric Forest', quantity: 1, unitPrice: 60, steam: ['Math', 'Arts'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Codey Rocky-Education Version', quantity: 20, unitPrice: 250, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'AI'] },
+            { lab: 'Infant', equipment: 'STEM Education Coding Robot Kit for AI Learning (6pcs)', quantity: 1, unitPrice: 800, steam: ['Technology', 'Engineering', 'AI'], disciplines: ['Coding', 'Robotics', 'AI'] },
+            { lab: 'Infant', equipment: 'AI Module 5S', quantity: 20, unitPrice: 70, steam: ['Technology', 'AI'], disciplines: ['AI'] },
+            { lab: 'Infant', equipment: 'AI Module 3S', quantity: 1, unitPrice: 50, steam: ['Technology', 'AI'], disciplines: ['AI'] },
+            { lab: 'Infant', equipment: 'MakeX Inspire Smart Logistics Arena and Frame', quantity: 1, unitPrice: 400, steam: ['Engineering', 'Technology'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Infant', equipment: 'Inspire-Smart Logistics Bundle', quantity: 1, unitPrice: 250, steam: ['Engineering', 'Technology'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Infant', equipment: 'Inspire-Smart Logistics add-on Bundle', quantity: 1, unitPrice: 150, steam: ['Engineering', 'Technology'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Infant', equipment: 'Battle of Tribes', quantity: 1, unitPrice: 100, steam: ['Engineering', 'Arts'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Cyber City map', quantity: 1, unitPrice: 80, steam: ['Arts', 'Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'OzoBot 18 pieces set', quantity: 1, unitPrice: 450, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'Blue-Bots (Bluetooth enabled)', quantity: 10, unitPrice: 100, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'LEGO Education SPIKE Essential Kits', quantity: 10, unitPrice: 280, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Infant', equipment: 'Matatalab Coding Set', quantity: 10, unitPrice: 180, steam: ['Technology', 'Math'], disciplines: ['Coding'] },
+            { lab: 'Infant', equipment: 'MakerZoid Coding Robot Kit', quantity: 10, unitPrice: 150, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'Sphero indi Classroom Pack', quantity: 1, unitPrice: 1200, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'Dash Robot 6pk (6 to 11 yrs)', quantity: 1, unitPrice: 1500, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'NXONE 195 PCS Educational STEM Toys', quantity: 5, unitPrice: 80, steam: ['Engineering', 'Math'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Kids First Coding & Robotics', quantity: 5, unitPrice: 90, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'Evo Entry Kit: Interactive Coding Robot', quantity: 10, unitPrice: 130, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'Makeblock mBot Stem Toy, Programmable Robot', quantity: 10, unitPrice: 120, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'Tale-Bot Pro Hands-on Coding Robot', quantity: 10, unitPrice: 150, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'APP Control Dinosaur Robot Toy, Educational Scratch Program Robotic Kit', quantity: 5, unitPrice: 100, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'Sillbird Robot', quantity: 5, unitPrice: 90, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: 'Coding Express', quantity: 5, unitPrice: 70, steam: ['Technology', 'Math'], disciplines: ['Coding'] },
+            { lab: 'Infant', equipment: 'Matatastudio Coding Set', quantity: 5, unitPrice: 200, steam: ['Technology', 'Math'], disciplines: ['Coding'] },
+            { lab: 'Infant', equipment: 'WhalesBot A3 12-in-1 STEM Blocks Coding Robot Kit for Kids', quantity: 5, unitPrice: 220, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Infant', equipment: 'ETI Toys STEM Learning Original Educational Construction Engineering Building Blocks Set', quantity: 5, unitPrice: 60, steam: ['Engineering', 'Math'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Space 32-Piece Set', quantity: 5, unitPrice: 40, steam: ['Science', 'Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Learning Resources Activity Kit Robot Mouse Code & Go Learning Resources', quantity: 5, unitPrice: 75, steam: ['Technology', 'Math'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Infant', equipment: '5-in-1 Remote Control Airplane Building Kit - STEM Educational Toy', quantity: 5, unitPrice: 85, steam: ['Engineering', 'Technology'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'LEGO Boost Creative Toolbox 17101 Fun Robot Building Set and Educational Coding Kit for Kids', quantity: 5, unitPrice: 160, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Infant', equipment: 'ClassVR Premium Headset (64GB) & License Bundle', quantity: 13, unitPrice: 800, steam: ['Technology', 'Arts', 'Science'], disciplines: ['AR/VR'] },
+            { lab: 'Infant', equipment: 'Meta Quest VR sets', quantity: 22, unitPrice: 300, steam: ['Technology', 'Arts', 'Science'], disciplines: ['AR/VR'] },
+            { lab: 'Infant', equipment: 'Storage bins for robotic kits', quantity: 20, unitPrice: 40, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Charging stations (for devices)', quantity: 5, unitPrice: 300, steam: ['Technology'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'STEM WALL Free Standing', quantity: 1, unitPrice: 1500, steam: ['Engineering', 'Arts'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Smartboard', quantity: 1, unitPrice: 3000, steam: ['Technology'], disciplines: ['Technology'] },
+            { lab: 'Infant', equipment: 'STEM Activity Table', quantity: 2, unitPrice: 400, steam: ['Engineering', 'Arts'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'STEM WALL - 512 Piece Pegs (8 Colours) Set I', quantity: 1, unitPrice: 200, steam: ['Arts', 'Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Infant', equipment: 'Standing desk (Made inhouse) Like a miniature version of the one in Infant VP Office', quantity: 2, unitPrice: 250, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+
+            { lab: 'Junior', equipment: 'BBC micro:bit classroom kits', quantity: 20, unitPrice: 200, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'Sensors Kits Arduino and Micro:bits', quantity: 20, unitPrice: 150, steam: ['Technology', 'Science'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'Arduino Starter Kit', quantity: 20, unitPrice: 80, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'mBot2', quantity: 20, unitPrice: 180, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics'] },
+            { lab: 'Junior', equipment: 'Rover Robotics Add-on Pack V1.0', quantity: 10, unitPrice: 70, steam: ['Technology', 'Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'Coding Standard Box', quantity: 20, unitPrice: 60, steam: ['Technology', 'Math'], disciplines: ['Coding'] },
+            { lab: 'Junior', equipment: 'Coding Somatosensory Game Box', quantity: 20, unitPrice: 70, steam: ['Technology', 'Arts'], disciplines: ['Coding', 'Animation'] },
+            { lab: 'Junior', equipment: 'Coding AI Science Box', quantity: 20, unitPrice: 80, steam: ['Technology', 'Science', 'AI'], disciplines: ['Coding', 'AI', 'Data Science'] },
+            { lab: 'Junior', equipment: 'Coding Data Science Box', quantity: 20, unitPrice: 80, steam: ['Technology', 'Math', 'Science'], disciplines: ['Coding', 'Data Science'] },
+            { lab: 'Junior', equipment: 'STEM Education Coding Robot Kit for AI Learning (6pcs)', quantity: 2, unitPrice: 800, steam: ['Technology', 'Engineering', 'AI'], disciplines: ['Coding', 'Robotics', 'AI'] },
+            { lab: 'Junior', equipment: 'Simple electronics/circuit exploration kits', quantity: 10, unitPrice: 50, steam: ['Science', 'Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Safety and classroom instructional tools', quantity: 2, unitPrice: 100, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'HaloCode standard kit', quantity: 20, unitPrice: 120, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'AI'] },
+            { lab: 'Junior', equipment: 'CyberPi Educational Competition Kit', quantity: 20, unitPrice: 150, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'CyberPi Project-Based Coding Kit', quantity: 30, unitPrice: 100, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'AI & IoT Creator Add-on Pack', quantity: 15, unitPrice: 90, steam: ['Technology', 'Science', 'AI'], disciplines: ['AI', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'AI & IoT Scientist Add-on Pack', quantity: 15, unitPrice: 90, steam: ['Technology', 'Science', 'AI'], disciplines: ['AI', 'Data Science'] },
+            { lab: 'Junior', equipment: 'AI & IoT Education Toolkit Add-on Pack', quantity: 15, unitPrice: 90, steam: ['Technology', 'Science', 'AI'], disciplines: ['AI', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'Angle Sensor', quantity: 5, unitPrice: 20, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Science Sensor', quantity: 5, unitPrice: 25, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Quad RGB Color Sensor', quantity: 5, unitPrice: 30, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Dual RGB Color Sensor', quantity: 5, unitPrice: 25, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Ultrasonic Sensor', quantity: 10, unitPrice: 15, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Speaker', quantity: 5, unitPrice: 10, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Slider', quantity: 5, unitPrice: 10, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'MQ2 Gas Sensor', quantity: 5, unitPrice: 20, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Joystick', quantity: 5, unitPrice: 15, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Blue LED Matrix', quantity: 15, unitPrice: 20, steam: ['Technology', 'Arts'], disciplines: ['Coding', 'Animation'] },
+            { lab: 'Junior', equipment: 'MultiTouch', quantity: 5, unitPrice: 25, steam: ['Technology'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Button', quantity: 5, unitPrice: 5, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'LED Driver', quantity: 5, unitPrice: 10, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Extend Module', quantity: 5, unitPrice: 15, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Flame Sensor', quantity: 5, unitPrice: 20, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Humiture Sensor', quantity: 5, unitPrice: 20, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'IR Transceiver Sensor', quantity: 5, unitPrice: 20, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Light Sensor', quantity: 5, unitPrice: 15, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Magnetic Sensor', quantity: 5, unitPrice: 15, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Motor Drive', quantity: 5, unitPrice: 25, steam: ['Engineering', 'Technology'], disciplines: ['Engineering Design', 'Robotics'] },
+            { lab: 'Junior', equipment: 'PIR Sensor', quantity: 5, unitPrice: 15, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'RGB LED', quantity: 5, unitPrice: 10, steam: ['Technology', 'Arts'], disciplines: ['Coding', 'Animation'] },
+            { lab: 'Junior', equipment: 'Servo Driver', quantity: 5, unitPrice: 20, steam: ['Engineering', 'Technology'], disciplines: ['Engineering Design', 'Robotics'] },
+            { lab: 'Junior', equipment: 'Sound Sensor', quantity: 5, unitPrice: 15, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Temperature Sensor', quantity: 5, unitPrice: 15, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'Soil Moisture Sensor', quantity: 5, unitPrice: 15, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Junior', equipment: 'MakeX Starter All-Core Journey Educational Competition Kit', quantity: 10, unitPrice: 300, steam: ['Technology', 'Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'MakeX Starter All-Core Journey Arena and Frame', quantity: 1, unitPrice: 400, steam: ['Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'MakeX Inspire Smart Logistics Arena and Frame', quantity: 1, unitPrice: 400, steam: ['Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'LEGO Education SPIKE kits and expansion', quantity: 10, unitPrice: 350, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'FIRST LEGO League (FLL) Challenge mat', quantity: 1, unitPrice: 200, steam: ['Engineering', 'Arts'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'VEX GO Robotics Kits', quantity: 2, unitPrice: 400, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'Drones for maneuvering', quantity: 3, unitPrice: 400, steam: ['Technology', 'Engineering'], disciplines: ['Drones', 'Engineering Design'] },
+            { lab: 'Junior', equipment: 'Meta Quest VR sets', quantity: 22, unitPrice: 300, steam: ['Technology', 'Arts', 'Science'], disciplines: ['AR/VR'] },
+
+            { lab: 'Secondary', equipment: 'Arduino Educational', quantity: 15, unitPrice: 100, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Raspberry Pi 400 Starter Kits', quantity: 15, unitPrice: 180, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Advanced Robotics Sets', quantity: 10, unitPrice: 800, steam: ['Technology', 'Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Sensor Kits', quantity: 10, unitPrice: 200, steam: ['Technology', 'Science'], disciplines: ['Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Drones for maneuvering', quantity: 4, unitPrice: 400, steam: ['Technology', 'Engineering'], disciplines: ['Drones', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Arena', quantity: 1, unitPrice: 500, steam: ['Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: '3D Printers', quantity: 4, unitPrice: 2000, steam: ['Technology', 'Engineering', 'Arts'], disciplines: ['Engineering Design'] },
+            { lab: 'Secondary', equipment: 'CO2 Laser Cutter', quantity: 1, unitPrice: 7000, steam: ['Technology', 'Engineering', 'Arts'], disciplines: ['Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Electronics Kits', quantity: 10, unitPrice: 150, steam: ['Technology', 'Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Measuring tools, passive and active components', quantity: 10, unitPrice: 100, steam: ['Science', 'Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Breadboards, sensors, soldering stations', quantity: 5, unitPrice: 250, steam: ['Technology', 'Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Secondary', equipment: 'DataBot for ML and Data Science (Classpack)', quantity: 2, unitPrice: 1500, steam: ['Technology', 'Science', 'Math', 'AI'], disciplines: ['Data Science', 'AI', 'Coding'] },
+            { lab: 'Secondary', equipment: 'mBot Ranger Robot Kit (Bluetooth Version)', quantity: 10, unitPrice: 220, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'mBot Ranger coding box', quantity: 10, unitPrice: 80, steam: ['Technology', 'Math'], disciplines: ['Coding'] },
+            { lab: 'Secondary', equipment: 'Ultimate Robot Kit V2.0', quantity: 10, unitPrice: 300, steam: ['Technology', 'Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'LEGO Education SPIKE kits', quantity: 10, unitPrice: 300, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'LEGO Education SPIKE Expansion', quantity: 10, unitPrice: 150, steam: ['Technology', 'Engineering'], disciplines: ['Coding', 'Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'VEX V5 Competition Super Kit', quantity: 2, unitPrice: 3000, steam: ['Technology', 'Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'MakeX Explorer Digital Pioneers Educational Competition Kit', quantity: 10, unitPrice: 350, steam: ['Technology', 'Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'MakeX Explorer Digital Pioneers Arena and Frame', quantity: 1, unitPrice: 500, steam: ['Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'MakeX Challenge Ultimate Winner Educational Competition Kit', quantity: 2, unitPrice: 1000, steam: ['Technology', 'Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'MakeX Challenge Ultimate Winner Arena and Frame', quantity: 1, unitPrice: 600, steam: ['Engineering'], disciplines: ['Robotics', 'Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Training Tables', quantity: 1, unitPrice: 300, steam: ['Engineering'], disciplines: ['Engineering Design'] },
+            { lab: 'Secondary', equipment: 'Meta Quest VR sets', quantity: 21, unitPrice: 300, steam: ['Technology', 'Arts', 'Science'], disciplines: ['AR/VR'] },
+        ];
+
+        let costBreakdownChart, steamDonutChart;
+        let currentLabFilter = 'All';
+        let currentDisciplineFilter = 'All';
+
+        const llmModal = document.getElementById('llm-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const llmResponseText = document.getElementById('llm-response-text');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const closeButton = document.querySelector('.close-button');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            populateDisciplineFilter();
+            setupEventListeners();
+            updateDashboard();
+        });
+
+        function populateDisciplineFilter() {
+            const disciplines = new Set();
+            quotationData.forEach(item => item.disciplines.forEach(discipline => disciplines.add(discipline)));
+            const filterEl = document.getElementById('discipline-filter');
+            filterEl.innerHTML = '<option value="All">All Disciplines</option>';
+            [...disciplines].sort().forEach(d => {
+                const option = document.createElement('option');
+                option.value = d;
+                option.textContent = d;
+                filterEl.appendChild(option);
+            });
+        }
+
+        function setupEventListeners() {
+            document.getElementById('lab-filters').addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    currentLabFilter = e.target.dataset.lab;
+                    document.querySelectorAll('#lab-filters .filter-btn').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    updateDashboard();
+                }
+            });
+
+            document.getElementById('discipline-filter').addEventListener('change', (e) => {
+                currentDisciplineFilter = e.target.value;
+                updateDashboard();
+            });
+
+            document.getElementById('table-search').addEventListener('input', (e) => {
+                updateDashboard(e.target.value.toLowerCase());
+            });
+
+            document.getElementById('generate-summary-btn').addEventListener('click', generateEquipmentSummary);
+            document.getElementById('explain-discipline-btn').addEventListener('click', explainSelectedDiscipline);
+
+            closeButton.addEventListener('click', () => {
+                llmModal.style.display = 'none';
+            });
+
+            window.addEventListener('click', (event) => {
+                if (event.target === llmModal) {
+                    llmModal.style.display = 'none';
+                }
+            });
+        }
+
+        function filterData(searchTerm = '') {
+            let filtered = quotationData;
+
+            if (currentLabFilter !== 'All') {
+                filtered = filtered.filter(item => item.lab === currentLabFilter);
+            }
+
+            if (currentDisciplineFilter !== 'All') {
+                filtered = filtered.filter(item => item.disciplines.includes(currentDisciplineFilter));
+            }
+
+            if (searchTerm) {
+                filtered = filtered.filter(item => item.equipment.toLowerCase().includes(searchTerm));
+            }
+
+            return filtered;
+        }
+
+        function updateDashboard(searchTerm = '') {
+            const data = filterData(searchTerm);
+            updateKPIs(data);
+            updateCostBreakdownChart(data);
+            updateSteamDonutChart(data);
+            updateTable(data);
+        }
+
+        function updateKPIs(data) {
+            const totalCost = data.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+            const totalItems = data.reduce((sum, item) => sum + item.quantity, 0);
+            const disciplines = new Set(data.flatMap(item => item.disciplines));
+
+            document.getElementById('total-cost').textContent = `$${totalCost.toLocaleString()}`;
+            document.getElementById('total-items').textContent = totalItems.toLocaleString();
+            document.getElementById('total-disciplines').textContent = disciplines.size;
+        }
+
+        function updateTable(data) {
+            const tableBody = document.getElementById('equipment-table-body');
+            tableBody.innerHTML = '';
+            if (data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No equipment found for the selected filters.</td></tr>';
+                return;
+            }
+            data.forEach(item => {
+                const row = `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.equipment}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.lab}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.disciplines.join(', ')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${item.quantity.toLocaleString()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 font-semibold text-right">$${(item.quantity * item.unitPrice).toLocaleString()}</td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        function updateCostBreakdownChart(data) {
+            const ctx = document.getElementById('cost-breakdown-chart').getContext('2d');
+            const disciplineCosts = {};
+            data.forEach(item => {
+                const cost = item.quantity * item.unitPrice;
+                item.disciplines.forEach(d => {
+                    disciplineCosts[d] = (disciplineCosts[d] || 0) + cost;
+                });
+            });
+
+            const sortedDisciplines = Object.entries(disciplineCosts).sort(([, a], [, b]) => b - a);
+            const labels = sortedDisciplines.map(([d]) => d);
+            const costs = sortedDisciplines.map(([, c]) => c);
+
+            if (costBreakdownChart) {
+                costBreakdownChart.destroy();
+            }
+
+            costBreakdownChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Total Cost',
+                        data: costs,
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString();
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Cost: $${context.parsed.y.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateSteamDonutChart(data) {
+            const ctx = document.getElementById('steam-donut-chart').getContext('2d');
+            const steamCosts = {};
+            data.forEach(item => {
+                const cost = item.quantity * item.unitPrice;
+                item.steam.forEach(s => {
+                    steamCosts[s] = (steamCosts[s] || 0) + cost;
+                });
+            });
+
+            const labels = Object.keys(steamCosts);
+            const costs = Object.values(steamCosts);
+
+            if (steamDonutChart) {
+                steamDonutChart.destroy();
+            }
+
+            steamDonutChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Cost by STEAM Category',
+                        data: costs,
+                        backgroundColor: [
+                            'rgba(239, 68, 68, 0.7)',  // Red for S
+                            'rgba(59, 130, 246, 0.7)', // Blue for T
+                            'rgba(245, 158, 11, 0.7)', // Amber for E
+                            'rgba(16, 185, 129, 0.7)', // Emerald for A
+                            'rgba(139, 92, 246, 0.7)'  // Violet for M
+                        ],
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.chart.getDatasetMeta(0).total;
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                                    return `${label}: $${value.toLocaleString()} (${percentage})`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function callGeminiAPI(prompt) {
+            loadingIndicator.style.display = 'flex';
+            llmResponseText.textContent = '';
+            llmModal.style.display = 'flex';
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = "AIzaSyAsQKOj8dekVUS1JxCTl9UBo7Kha3A4P_Y";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    llmResponseText.textContent = text;
+                } else {
+                    llmResponseText.textContent = 'Error: Could not get a valid response from the AI.';
+                }
+            } catch (error) {
+                llmResponseText.textContent = `Error: ${error.message}. Please try again.`;
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        async function generateEquipmentSummary() {
+            modalTitle.textContent = 'Equipment Summary';
+            const data = filterData();
+            if (data.length === 0) {
+                llmResponseText.textContent = 'No equipment found for the current filters to summarize.';
+                llmModal.style.display = 'flex';
+                return;
+            }
+
+            const totalCost = data.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+            const uniqueLabs = [...new Set(data.map(item => item.lab))].join(', ');
+            const uniqueDisciplines = [...new Set(data.flatMap(item => item.disciplines))].join(', ');
+
+            let equipmentList = data.map(item => `- ${item.equipment} (Quantity: ${item.quantity}, Lab: ${item.lab}, Disciplines: ${item.disciplines.join(', ')})`).join('\n');
+
+            const prompt = `Generate a concise summary of the following innovation lab equipment quotation. Focus on the total estimated cost, the labs involved, the primary disciplines covered, and a brief overview of the types of equipment.
+
+            Equipment List:\n${equipmentList}\n
+            Total Estimated Cost: $${totalCost.toLocaleString()}
+            Labs: ${uniqueLabs}
+            Disciplines: ${uniqueDisciplines}
+
+            Please provide a summary suitable for a school's procurement request.`;
+
+            await callGeminiAPI(prompt);
+        }
+
+        async function explainSelectedDiscipline() {
+            const selectedDiscipline = document.getElementById('discipline-filter').value;
+            modalTitle.textContent = `Explanation: ${selectedDiscipline}`;
+
+            if (selectedDiscipline === 'All') {
+                llmResponseText.textContent = 'Please select a specific discipline from the dropdown to get an explanation.';
+                llmModal.style.display = 'flex';
+                return;
+            }
+
+            const prompt = `Explain the discipline of "${selectedDiscipline}" in the context of an innovation lab for students from ages 3 to 18. Describe what kind of activities and learning outcomes students would engage in related to this discipline within such a lab.`;
+
+            await callGeminiAPI(prompt);
+        }
+
+    </script>
+</body>
+</html>
